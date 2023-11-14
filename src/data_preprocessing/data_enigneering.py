@@ -19,4 +19,5 @@ def handle_na(df: pd.DataFrame, dropna_cols: List[str]) -> pd.DataFrame:
             Transformed data where methods to na values where applied.
     """
     df = df.dropna(subset=dropna_cols)
+    df = df.reset_index(drop=True)
     return df
