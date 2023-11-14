@@ -11,7 +11,8 @@ def load_data(path_to_file: Path) -> pd.DataFrame:
 
     Parameters
     -------
-    None : None
+    path_to_file : Path
+                Path to main csv.
 
     Returns
     -------
