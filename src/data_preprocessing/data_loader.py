@@ -1,13 +1,12 @@
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 
-from config.config_data import DATA_DIR, MAIN_FILE
 
-
-def load_data() -> pd.DataFrame:
+def load_data(path_to_file: Path) -> pd.DataFrame:
     """Loads the main data file from csv to a pandas dataframe.
 
     Parameters
@@ -19,7 +18,7 @@ def load_data() -> pd.DataFrame:
     df : pd.DataFrame
             Data as a dataframe.
     """
-    df = pd.read_csv(DATA_DIR / MAIN_FILE)
+    df = pd.read_csv(path_to_file)
 
     # convert time from string to datetime
     df["time"] = pd.to_datetime(df["time"])
@@ -30,7 +29,7 @@ def load_data() -> pd.DataFrame:
 def time_split(
     df: pd.DataFrame, n_folds: int = 5
 ) -> List[Tuple[np.ndarray[int], np.ndarray[int]]]:
-    """Loads the main data file from csv to a pandas dataframe.
+    """Creates time series split for data.
 
     Parameters
     -------
