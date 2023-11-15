@@ -48,3 +48,23 @@ def mape(
         MAPE value, a percentage measure of the accuracy of the prediction.
     """
     return 100 * np.sum(np.abs((y_pred - y_true) / y_true)) / len(y_true)
+
+
+def mae(
+    y_true: Union[pd.Series, np.ndarray], y_pred: Union[pd.Series, np.ndarray]
+) -> float:
+    """Calculates MAE between true and predicted values.
+
+    Parameters
+    ----------
+    y_true : Union[pd.Series, np.ndarray]
+        Array of true values.
+    y_pred : Union[pd.Series, np.ndarray]
+        Array of predicted values.
+
+    Returns
+    -------
+    float
+        Mean Absolute Error between y_true and y_pred.
+    """
+    return np.mean(np.abs(y_pred - y_true))
