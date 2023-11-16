@@ -4,6 +4,7 @@ from typing import List, Tuple
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 
+from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
 from src.data_preprocessing.data_pipeline import data_pipeline
 
@@ -101,5 +102,5 @@ def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
 
 
 if __name__ == "__main__":
-    df, _ = data_pipeline()
+    df, _ = data_pipeline(DATA_DIR / MAIN_FILE)
     get_arima_model(df)
