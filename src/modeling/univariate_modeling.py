@@ -76,7 +76,6 @@ def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
             continue
 
         series = df[col]
-        series.index = df.time
         series.index = series.index.to_period("M")
         series = series.dropna()
 

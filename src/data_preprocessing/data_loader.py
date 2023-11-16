@@ -21,8 +21,9 @@ def load_data(path_to_file: Path) -> pd.DataFrame:
     """
     df = pd.read_csv(path_to_file)
 
-    # convert time from string to datetime
-    df["time"] = pd.to_datetime(df["time"])
+    # convert time from string to datetime and set it as index
+    df.index = pd.to_datetime(df["time"])
+    df = df.drop(columns="time")
 
     return df
 
