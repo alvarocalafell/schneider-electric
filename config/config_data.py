@@ -7,5 +7,4 @@ DATA_DIR = (
 MAIN_FILE = "PA6_cleaned_dataset.csv"
 
 # data preprocessing
-DROPNA_COLS = ["best_price_compound"]
-N_FOLDS = 10
+N_FOLDS = 8

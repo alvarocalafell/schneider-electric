@@ -4,8 +4,7 @@ from typing import List, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from config.config_data import DROPNA_COLS, N_FOLDS
-from src.data_preprocessing.data_enigneering import handle_na
+from config.config_data import N_FOLDS
 from src.data_preprocessing.data_loader import load_data, time_split
 
 
@@ -30,10 +29,6 @@ def data_pipeline(
     """
     # create initial dataset
     df = load_data(path_)
-
-    # handle missing data
-    if DROPNA_COLS:
-        df = handle_na(df, DROPNA_COLS)
 
     # perform time series cv split if wanted
     if N_FOLDS > 1:
