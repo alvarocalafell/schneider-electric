@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
@@ -101,6 +102,109 @@ def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
     return models
 
 
+def grid_search_ets(
+    ts: pd.Series,
+    trend: List[str] = ["add", "additive", "multiplicative", None],
+    seasonal: List[str] = ["add", "additive", "multiplicative", None],
+    seasonal_periods: List[int] = [None, 12, 6, 3],
+) -> Tuple[str, str, int, float]:
+    """Performs a grid search for ETS based on AIC.
+
+    Parameters
+    ----------
+    ts : pd.Series
+        Time series data.
+    trend : List[str]
+        List of candidate values for trend.
+    seasonal : List[str]
+        List of candidate values for seasonal component.
+    seasonal_periods : List[int]
+        List of candidate values for seasonal periods.
+
+    Returns
+    -------
+    best_trend : str
+        Best trend component.
+    best_seasonal : str
+        Best seasonal component.
+    best_seasonal_periods : int
+        Best number of seasonal periods.
+    best_aic : float
+        AIC for the best ETS model.
+    """
+    best_aic = float("inf")
+    best_trend = None
+    best_seasonal = None
+    best_seasonal_periods = None
+
+    for trend_type in trend:
+        for seasonal_type in seasonal:
+            for period in seasonal_periods:
+                ets_model = ExponentialSmoothing(
+                    ts,
+                    trend=trend_type,
+                    seasonal=seasonal_type,
+                    seasonal_periods=period,
+                )
+                ets_fit = ets_model.fit()
+                aic = ets_fit.aic
+
+                if aic < best_aic:
+                    best_aic = aic
+                    best_trend = trend_type
+                    best_seasonal = seasonal_type
+                    best_seasonal_periods = period
+
+    return best_trend, best_seasonal, best_seasonal_periods, best_aic
+
+
+def get_ets_model(df: pd.DataFrame) -> dict[str, ExponentialSmoothing]:
+    """Get ETS model for each column of df.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame.
+
+    Returns
+    -------
+    models : dict[str, ExponentialSmoothing]
+        Dict of univariate ETS models for each column.
+    """
+    models = {}
+
+    for col in df.columns:
+        series = df[col].copy()
+        series.index = pd.to_datetime(series.index)
+        series = series.dropna()
+
+        # Grid search for ETS parameters
+        best_trend, best_seasonal, best_seasonal_periods, _ = grid_search_ets(
+            series
+        )
+
+        # Fit the ETS model with the best parameters
+        ets_model = ExponentialSmoothing(
+            series,
+            trend=best_trend,
+            seasonal=best_seasonal,
+            seasonal_periods=best_seasonal_periods,
+        )
+        ets_fit = ets_model.fit()
+
+        models[col] = ets_fit
+
+        print(f"{col}")
+        print(f"- Best Trend: {best_trend}")
+        print(f"- Best Seasonal: {best_seasonal}")
+        print(f"- Best Seasonal Periods: {best_seasonal_periods}")
+        print(f"- AIC: {ets_fit.aic:.2f}")
+        print("---------------")
+
+    return models
+
+
 if __name__ == "__main__":
     df, _ = data_pipeline(DATA_DIR / MAIN_FILE)
     get_arima_model(df)
+    get_ets_model(df)
