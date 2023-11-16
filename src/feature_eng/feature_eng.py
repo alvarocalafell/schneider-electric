@@ -1,20 +1,8 @@
 from pathlib import Path
 from typing import List
 
+import numpy as np
 import pandas as pd
-
-from config.config_data_preprocessing import (
-    DATA_PATH,
-    DROP_NA_VARS,
-    DROP_VARS,
-    GROUPING_FUNCS,
-    GROUPING_NAMES,
-    GROUPING_VARS,
-    OUT_PATH,
-    SEASON_DICT,
-    TIME_VARS,
-    TO_DATETIME,
-)
 
 
 def load_data(data_path: Path) -> pd.DataFrame:
@@ -31,6 +19,7 @@ def load_data(data_path: Path) -> pd.DataFrame:
         Dataframe obtained from the data.
     """
     df = pd.read_csv(data_path)
+    df["time"] = pd.to_datetime(df["time"])
     return df
 
 
@@ -88,14 +77,16 @@ def add_time_variables(df: pd.DataFrame, time_var: str) -> pd.DataFrame:
     df: pd.DataFrame
         Dataframe with the time variable.
     """
-    possible_time_vars = ["year", "month", "season"]
+    possible_time_vars = ["year", "month", "season", "quarter"]
     if time_var not in possible_time_vars:
         raise ValueError(
             "Invalid time variable. Expected one of: %s" % possible_time_vars
         )
-    if time_var == "season" and "month" not in list(df.columns):
+    if (time_var == "season" or time_var == "quarter") and "month" not in list(
+        df.columns
+    ):
         raise ValueError(
-            "Impossible to compute season without having month column. \
+            "Impossible to create season/quarter without having month column. \
                 Please create month column first."
         )
     if time_var == "year":
@@ -103,7 +94,45 @@ def add_time_variables(df: pd.DataFrame, time_var: str) -> pd.DataFrame:
     if time_var == "month":
         df["month"] = [df["time"][i].month for i in range(len(df))]
     if time_var == "season":
-        df["Season"] = df["month"].apply(lambda x: SEASON_DICT[x])
+        df["season"] = (df["month"] % 12) // 3
+    if time_var == "quarter":
+        df["quarter"] = (df["month"] - 1) // 3 + 1
+    return df
+
+
+def cyclical_variable_prep(
+    df: pd.DataFrame, cyclical_var: str
+) -> pd.DataFrame:
+    """Computes sin and cos decomp for cyclical variables.
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Dataframe for which we want to do sin, cos decomp.
+    cyclical_var: str
+        Cyclical variable we want to decompose.
+
+    Returns
+    -------
+    df: pd.DataFrame
+        Dataframe with the cyclical variable decomposed.
+    """
+    possible_cyclical_vars = ["month", "season", "quarter"]
+    if cyclical_var not in possible_cyclical_vars:
+        raise ValueError(
+            "Not a cyclical variable. Expected one of: %s"
+            % possible_cyclical_vars
+        )
+    if cyclical_var == "month":
+        df["month_sin"] = np.sin(df["month"] * 2 * np.pi / 12)
+        df["month_cos"] = np.cos(df["month"] * 2 * np.pi / 12)
+    if cyclical_var == "season":
+        df["season_sin"] = np.sin(df["season"] * 2 * np.pi / 4)
+        df["season_cos"] = np.sin(df["season"] * 2 * np.pi / 4)
+    if cyclical_var == "quarter":
+        df["quarter_sin"] = np.sin(df["quarter"] * 2 * np.pi / 4)
+        df["quarter_cos"] = np.cos(df["quarter"] * 2 * np.pi / 4)
+    df = df.drop(cyclical_var, axis=1)
     return df
 
 
@@ -128,12 +157,10 @@ def drop_na_vals(df: pd.DataFrame, drop_variable: str) -> pd.DataFrame:
 
 def preprocessor(
     data_path: Path,
-    to_datetime: bool,
     grouping_features: List[List[str]],
     feature_names: List[str],
     aggregate_funcs: List[str],
     time_vars: List[str],
-    drop_na_variables: List[str],
     drop_variables: List[str],
 ) -> pd.DataFrame:
     """Function which preprocesses the data.
@@ -142,8 +169,6 @@ def preprocessor(
     ----------
     data_path: Path
         Path to the data.
-    to_datetime: bool
-        Specifies whether the time column should be turned to datetime.
     grouping_features: List[List[str]]
         List of groups of features to be grouped.
     feature_names: List[str]
@@ -152,8 +177,6 @@ def preprocessor(
         List of functions we will use to aggregate the groups of features.
     time_vars: List[str]
         Time variables we want to add to the dataframe.
-    drop_na_variables: List[str]
-        Variables which we will check for NaN values.
     drop_variables: List[str]
         List of variables to be dropped from the df.
 
@@ -163,8 +186,6 @@ def preprocessor(
         Processed dataframe.
     """
     df = load_data(data_path)
-    if to_datetime:
-        df["time"] = pd.to_datetime(df["time"])
     i = 0
     for i in range(len(grouping_features)):
         df = group_variable(
@@ -173,21 +194,8 @@ def preprocessor(
         i = i + 1
     for var in time_vars:
         df = add_time_variables(df, var)
-    for var in drop_na_variables:
-        df = drop_na_vals(df, var)
+    cyclical_vars = [x for x in time_vars if x != "year"]
+    for var in cyclical_vars:
+        df = cyclical_variable_prep(df, var)
     df = df.drop(drop_variables, axis=1)
     return df
-
-
-if __name__ == "__main__":
-    data = preprocessor(
-        DATA_PATH,
-        TO_DATETIME,
-        GROUPING_VARS,
-        GROUPING_NAMES,
-        GROUPING_FUNCS,
-        TIME_VARS,
-        DROP_NA_VARS,
-        DROP_VARS,
-    )
-    data.to_csv(OUT_PATH, index=False)
