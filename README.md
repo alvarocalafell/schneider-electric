@@ -21,3 +21,8 @@ For development run the following line to setup pre-commit hooks.
 ```bash
 pre-commit install
 ```
+
+## Run the Pipeline
+```bash
+python src/main.py
+```
