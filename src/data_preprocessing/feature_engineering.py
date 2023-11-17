@@ -63,13 +63,17 @@ def group_variable(
         raise ValueError(
             "Invalid aggregate function. Expected one of: %s" % possible_aggs
         )
+
     if aggregate_func == "mean":
         df[new_feature_name] = df[features].mean(axis=1)
-    if aggregate_func == "min":
+    elif aggregate_func == "min":
         df[new_feature_name] = df[features].min(axis=1)
-    if aggregate_func == "max":
+    elif aggregate_func == "max":
         df[new_feature_name] = df[features].max(axis=1)
+
+    # drop old features
     df = df.drop(features, axis=1)
+
     return df
 
 
@@ -93,21 +97,17 @@ def add_time_variables(df: pd.DataFrame, time_var: str) -> pd.DataFrame:
         raise ValueError(
             "Invalid time variable. Expected one of: %s" % possible_time_vars
         )
-    if (time_var == "season" or time_var == "quarter") and "month" not in list(
-        df.columns
-    ):
-        raise ValueError(
-            "Impossible to create season/quarter without having month column. \
-                Please create month column first."
-        )
+
+    # create time variable
     if time_var == "year":
-        df["year"] = [df["time"][i].year for i in range(len(df))]
-    if time_var == "month":
-        df["month"] = [df["time"][i].month for i in range(len(df))]
-    if time_var == "season":
-        df["season"] = (df["month"] % 12) // 3
-    if time_var == "quarter":
-        df["quarter"] = (df["month"] - 1) // 3 + 1
+        df["year"] = df["time"].dt.year
+    elif time_var == "month":
+        df["month"] = df["time"].dt.month
+    elif time_var == "season":
+        df["season"] = (df["time"].dt.month % 12) // 3
+    elif time_var == "quarter":
+        df["quarter"] = (df["time"].dt.month - 1) // 3 + 1
+
     return df
 
 
@@ -134,16 +134,21 @@ def cyclical_variable_prep(
             "Not a cyclical variable. Expected one of: %s"
             % possible_cyclical_vars
         )
+
+    # do cyclical transformation
     if cyclical_var == "month":
         df["month_sin"] = np.sin(df["month"] * 2 * np.pi / 12)
         df["month_cos"] = np.cos(df["month"] * 2 * np.pi / 12)
-    if cyclical_var == "season":
+    elif cyclical_var == "season":
         df["season_sin"] = np.sin(df["season"] * 2 * np.pi / 4)
         df["season_cos"] = np.sin(df["season"] * 2 * np.pi / 4)
-    if cyclical_var == "quarter":
+    elif cyclical_var == "quarter":
         df["quarter_sin"] = np.sin(df["quarter"] * 2 * np.pi / 4)
         df["quarter_cos"] = np.cos(df["quarter"] * 2 * np.pi / 4)
+
+    # drop old var
     df = df.drop(cyclical_var, axis=1)
+
     return df
 
 
@@ -173,7 +178,7 @@ def preprocessor(
     time_vars: List[str],
     drop_variables: List[str],
     data_path: Path = None,
-    dataframe: pd.DataFrame = None,
+    df: pd.DataFrame = None,
 ) -> pd.DataFrame:
     """Function which preprocesses the data.
 
@@ -191,7 +196,7 @@ def preprocessor(
         List of variables to be dropped from the df.
     data_path: Path
         Path to the data.
-    dataframe: pd.DataFrame
+    df: pd.DataFrame
         Dataframe we want to preprocess.
 
     Returns
@@ -199,29 +204,34 @@ def preprocessor(
     df: pd.DataFrame
         Processed dataframe.
     """
-    if data_path is None and dataframe is None:
+    # load data or pass df
+    if data_path is None and df is None:
         raise ValueError(
             "Need to give either a dataframe or a path. Please try again."
         )
-    if data_path is not None and dataframe is not None:
+    if data_path and df:
         raise ValueError(
             "Data Path and df given. Give only one. Please try again."
         )
-    if data_path is not None and dataframe is None:
-        df = load_data(data_path)
-    if data_path is None and dataframe is not None:
-        df = dataframe
 
-    i = 0
+    if data_path:
+        df = load_data(data_path)
+
+    # group features by agg
     for i in range(len(grouping_features)):
         df = group_variable(
             df, grouping_features[i], feature_names[i], aggregate_funcs[i]
         )
-        i = i + 1
+
+    # add time variables
     for var in time_vars:
         df = add_time_variables(df, var)
+
+    # do cyclical transformations
     cyclical_vars = [x for x in time_vars if x != "year"]
     for var in cyclical_vars:
         df = cyclical_variable_prep(df, var)
+
+    # drop columns
     df = df.drop(drop_variables, axis=1)
     return df
