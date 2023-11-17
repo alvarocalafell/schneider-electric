@@ -7,7 +7,7 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
-from src.data_preprocessing.data_pipeline import data_pipeline
+from src.data_preprocessing.data_loader import load_data
 
 warnings.filterwarnings("ignore")
 
@@ -140,6 +140,12 @@ def grid_search_ets(
     for trend_type in trend:
         for seasonal_type in seasonal:
             for period in seasonal_periods:
+                # skip inappropriate param combinations
+                if seasonal_type is None and period:
+                    continue
+                if seasonal_type and period is None:
+                    continue
+
                 ets_model = ExponentialSmoothing(
                     ts,
                     trend=trend_type,
@@ -205,6 +211,6 @@ def get_ets_model(df: pd.DataFrame) -> dict[str, ExponentialSmoothing]:
 
 
 if __name__ == "__main__":
-    df, _ = data_pipeline(DATA_DIR / MAIN_FILE)
+    df = load_data(DATA_DIR / MAIN_FILE)
     get_arima_model(df)
     get_ets_model(df)
