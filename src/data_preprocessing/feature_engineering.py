@@ -156,19 +156,18 @@ def drop_na_vals(df: pd.DataFrame, drop_variable: str) -> pd.DataFrame:
 
 
 def preprocessor(
-    data_path: Path,
     grouping_features: List[List[str]],
     feature_names: List[str],
     aggregate_funcs: List[str],
     time_vars: List[str],
     drop_variables: List[str],
+    data_path: Path = None,
+    dataframe: pd.DataFrame = None,
 ) -> pd.DataFrame:
     """Function which preprocesses the data.
 
     Parameters
     ----------
-    data_path: Path
-        Path to the data.
     grouping_features: List[List[str]]
         List of groups of features to be grouped.
     feature_names: List[str]
@@ -179,13 +178,29 @@ def preprocessor(
         Time variables we want to add to the dataframe.
     drop_variables: List[str]
         List of variables to be dropped from the df.
+    data_path: Path
+        Path to the data.
+    dataframe: pd.DataFrame
+        Dataframe we want to preprocess.
 
     Returns
     -------
     df: pd.DataFrame
         Processed dataframe.
     """
-    df = load_data(data_path)
+    if data_path is None and dataframe is None:
+        raise ValueError(
+            "Need to give either a dataframe or a path. Please try again."
+        )
+    if data_path is not None and dataframe is not None:
+        raise ValueError(
+            "Data Path and df given. Give only one. Please try again."
+        )
+    if data_path is not None and dataframe is None:
+        df = load_data(data_path)
+    if data_path is None and dataframe is not None:
+        df = dataframe
+
     i = 0
     for i in range(len(grouping_features)):
         df = group_variable(
