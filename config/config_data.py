@@ -1,3 +1,12 @@
+"""Config Data.
+
+This is a config file for the data load, processing and feature engineering.
+
+Usage:
+    Change the params here and import them in your script/notebook.
+"""
+
+
 from pathlib import Path
 
 # data load

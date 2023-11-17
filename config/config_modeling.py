@@ -1,3 +1,12 @@
+"""Config Modeling.
+
+This is a config file for the modeling process.
+
+Usage:
+    Change the params here and import them in your script/notebook.
+"""
+
+
 P_RANGE = {
     "best_price_compound": list(range(0, 4)),
     "PA6 GLOBAL_ EMEAS _ EUR per TON": list(range(0, 5)),

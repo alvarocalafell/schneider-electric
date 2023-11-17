@@ -1,3 +1,13 @@
+"""Data Loader.
+
+The functions in this script perform data load and a time series split.
+
+Usage:
+    Either run the whole pipeline (see src/main.py) or
+    import the functions.
+"""
+
+
 from pathlib import Path
 from typing import List, Tuple
 
@@ -50,7 +60,7 @@ def time_split(
     split_index = len(df) - n_folds * test_size
     train_ids = np.arange(0, split_index)
 
-    for fold in range(1, n_folds + 1):
+    for _ in range(1, n_folds + 1):
         test_ids = np.arange(split_index, split_index + test_size)
 
         all_splits.append((train_ids, test_ids))
