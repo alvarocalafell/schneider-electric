@@ -1,3 +1,14 @@
+"""Feature Engineering.
+
+The script preforms feature engineering such as grouping of variables by
+aggregation, adding time variables, and performing cyclical transformations.
+
+Usage:
+    Either run the whole pipeline (see src/main.py) or
+    import the function preprocessor.
+"""
+
+
 from pathlib import Path
 from typing import List
 
