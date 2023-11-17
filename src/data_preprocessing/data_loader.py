@@ -3,7 +3,6 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import TimeSeriesSplit
 
 
 def load_data(path_to_file: Path) -> pd.DataFrame:
@@ -29,22 +28,34 @@ def load_data(path_to_file: Path) -> pd.DataFrame:
 
 
 def time_split(
-    df: pd.DataFrame, n_folds: int = 5
+    df: pd.DataFrame, n_folds: int = 6, test_size: int = 9
 ) -> List[Tuple[np.ndarray[int], np.ndarray[int]]]:
-    """Creates time series split for data.
+    """Creates an extending time series split for data.
 
     Parameters
     -------
     df : pd.DataFrame
         Data as a dataframe.
     n_folds : int, optional
-        Number of time series folds, default is 5.
+        Number of time series folds, default is 6.
+    test_size : int, optional
+        Number of rows in one test test, default is 9.
 
     Returns
     -------
     all_splits : List[Tuple[np.ndarray[int], np.ndarray[int]]]
                 Splits of train and test indices per fold.
     """
-    tscv = TimeSeriesSplit(n_splits=n_folds)
-    all_splits = list(tscv.split(df))
+    all_splits = []
+    split_index = len(df) - n_folds * test_size
+    train_ids = np.arange(0, split_index)
+
+    for fold in range(1, n_folds + 1):
+        test_ids = np.arange(split_index, split_index + test_size)
+
+        all_splits.append((train_ids, test_ids))
+        train_ids = np.append(train_ids, test_ids)
+
+        split_index += test_size
+
     return all_splits

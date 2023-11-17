@@ -15,23 +15,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-
-def load_data(data_path: Path) -> pd.DataFrame:
-    """Given a path, loads the data.
-
-    Parameters
-    ----------
-    data_path: Path
-        Path to the data.
-
-    Returns
-    -------
-    df: pd.DataFrame
-        Dataframe obtained from the data.
-    """
-    df = pd.read_csv(data_path)
-    df["time"] = pd.to_datetime(df["time"])
-    return df
+from src.data_preprocessing.data_loader import load_data
 
 
 def group_variable(
@@ -100,13 +84,13 @@ def add_time_variables(df: pd.DataFrame, time_var: str) -> pd.DataFrame:
 
     # create time variable
     if time_var == "year":
-        df["year"] = df["time"].dt.year
+        df["year"] = df.index.year
     elif time_var == "month":
-        df["month"] = df["time"].dt.month
+        df["month"] = df.index.month
     elif time_var == "season":
-        df["season"] = (df["time"].dt.month % 12) // 3
+        df["season"] = (df.index.month % 12) // 3
     elif time_var == "quarter":
-        df["quarter"] = (df["time"].dt.month - 1) // 3 + 1
+        df["quarter"] = (df.index.month - 1) // 3 + 1
 
     return df
 
