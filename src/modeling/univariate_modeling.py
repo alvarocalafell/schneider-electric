@@ -7,7 +7,8 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
-from src.data_preprocessing.data_loader import load_data
+from src.data_preprocessing.data_loader import load_data, time_split
+from src.modeling.evaluation import smape
 
 warnings.filterwarnings("ignore")
 
@@ -41,21 +42,33 @@ def grid_search_arima(
     best_aic : int
         AIC for best ARIMA model order
     """
-    best_aic = float("inf")
+    best_sMAPE = float("inf")
     best_order = None
+    spl = time_split(ts)
 
     for p in p_values:
         for q in q_values:
             order = (p, d, q)
-            model = ARIMA(ts, order=order, seasonal_order=seasonal)
-            model_fit = model.fit()
-            aic = model_fit.aic
+            sMAPE_total = 0.0
 
-            if aic < best_aic:
-                best_aic = aic
+            for train_idx, test_idx in spl:
+                train = ts.iloc[train_idx]
+                test = ts.iloc[test_idx]
+                model = ARIMA(train, order=order, seasonal_order=seasonal)
+                model_fit = model.fit()
+                preds = model_fit.predict(
+                    start=test.index[0], end=test.index[-1]
+                )
+                sMAPE = smape(test[2::3], preds[2::3])
+                sMAPE_total += sMAPE
+
+            avg_sMAPE = sMAPE_total / len(spl)
+
+            if avg_sMAPE < best_sMAPE:
+                best_sMAPE = avg_sMAPE
                 best_order = order
 
-    return best_order, best_aic
+    return best_order, best_sMAPE
 
 
 def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
@@ -80,7 +93,7 @@ def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
         series.index = series.index.to_period("M")
         series = series.dropna()
 
-        best_order, best_aic = grid_search_arima(
+        best_order, best_sMAPE = grid_search_arima(
             series,
             P_RANGE[col],
             D[col],
@@ -92,7 +105,7 @@ def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
             f"- Best ARIMA Order: {best_order} "
             f"x {SEASONAL_TERMS.get(col, (0, 0, 0, 0))}"
         )
-        print(f"- AIC: {best_aic:.2f}")
+        print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
         print("---------------")
 
         model = ARIMA(series, order=best_order)
@@ -132,10 +145,12 @@ def grid_search_ets(
     best_aic : float
         AIC for the best ETS model.
     """
-    best_aic = float("inf")
+    best_sMAPE = float("inf")
     best_trend = None
     best_seasonal = None
     best_seasonal_periods = None
+
+    spl = time_split(ts)
 
     for trend_type in trend:
         for seasonal_type in seasonal:
@@ -146,22 +161,35 @@ def grid_search_ets(
                 if seasonal_type and period is None:
                     continue
 
-                ets_model = ExponentialSmoothing(
-                    ts,
-                    trend=trend_type,
-                    seasonal=seasonal_type,
-                    seasonal_periods=period,
-                )
-                ets_fit = ets_model.fit()
-                aic = ets_fit.aic
+                sMAPE_total = 0.0
 
-                if aic < best_aic:
-                    best_aic = aic
+                for train_idx, test_idx in spl:
+                    train = ts.iloc[train_idx]
+                    test = ts.iloc[test_idx]
+
+                    ets_model = ExponentialSmoothing(
+                        train,
+                        trend=trend_type,
+                        seasonal=seasonal_type,
+                        seasonal_periods=period,
+                    )
+                    ets_fit = ets_model.fit()
+
+                    preds = ets_fit.predict(
+                        start=test.index[0], end=test.index[-1]
+                    )
+                    sMAPE = smape(test[2::3], preds[2::3])
+                    sMAPE_total += sMAPE
+
+                avg_sMAPE = sMAPE_total / len(spl)
+
+                if avg_sMAPE < best_sMAPE:
+                    best_sMAPE = avg_sMAPE
                     best_trend = trend_type
                     best_seasonal = seasonal_type
                     best_seasonal_periods = period
 
-    return best_trend, best_seasonal, best_seasonal_periods, best_aic
+    return best_trend, best_seasonal, best_seasonal_periods, best_sMAPE
 
 
 def get_ets_model(df: pd.DataFrame) -> dict[str, ExponentialSmoothing]:
@@ -185,9 +213,12 @@ def get_ets_model(df: pd.DataFrame) -> dict[str, ExponentialSmoothing]:
         series = series.dropna()
 
         # Grid search for ETS parameters
-        best_trend, best_seasonal, best_seasonal_periods, _ = grid_search_ets(
-            series
-        )
+        (
+            best_trend,
+            best_seasonal,
+            best_seasonal_periods,
+            best_sMAPE,
+        ) = grid_search_ets(series)
 
         # Fit the ETS model with the best parameters
         ets_model = ExponentialSmoothing(
@@ -204,7 +235,7 @@ def get_ets_model(df: pd.DataFrame) -> dict[str, ExponentialSmoothing]:
         print(f"- Best Trend: {best_trend}")
         print(f"- Best Seasonal: {best_seasonal}")
         print(f"- Best Seasonal Periods: {best_seasonal_periods}")
-        print(f"- AIC: {ets_fit.aic:.2f}")
+        print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
         print("---------------")
 
     return models
