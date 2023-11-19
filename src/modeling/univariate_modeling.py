@@ -1,6 +1,7 @@
 import warnings
 from typing import List, Tuple
 
+import numpy as np
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
@@ -11,6 +12,28 @@ from src.data_preprocessing.data_loader import load_data, time_split
 from src.modeling.evaluation import mae, smape
 
 warnings.filterwarnings("ignore")
+
+
+def baseline_model(
+    ts: pd.Series,
+) -> Tuple[float, float, np.ndarray[float]]:
+    spl = time_split(ts)
+    sMAPE_total, MAE_total = 0.0, 0.0
+
+    for train_idx, test_idx in spl:
+        train = ts.iloc[train_idx]
+        test = ts.iloc[test_idx]
+
+        preds = np.repeat(train[-1], len(test))
+        sMAPE = smape(test[2::3], preds[2::3])
+        MAE = mae(test[2::3], preds[2::3])
+        sMAPE_total += sMAPE
+        MAE_total += MAE
+
+    avg_sMAPE = sMAPE_total / len(spl)
+    avg_MAE = MAE_total / len(spl)
+
+    return avg_sMAPE, avg_MAE, preds
 
 
 def grid_search_arima(
@@ -171,6 +194,20 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         series.index = series.index.to_period("M")
         series = series.dropna()
 
+        print(f"{col}")
+
+        # baseline
+        avg_sMAPE, avg_MAE, preds = baseline_model(series)
+        models[col] = {
+            "baseline": {
+                "sMAPE": avg_sMAPE,
+                "MAE": avg_MAE,
+                "model": preds,
+            }
+        }
+        print("** Baseline **")
+        print(f"- Avg. sMAPE (3-6-9 months): {avg_sMAPE:.2f}")
+
         # arima
         best_order, best_sMAPE, best_MAE, best_model = grid_search_arima(
             series,
@@ -179,21 +216,18 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
             Q_RANGE[col],
             SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
         )
-        print(f"{col}")
         print("** ARIMA **")
         print(
             f"- Best ARIMA Order: {best_order} "
             f"x {SEASONAL_TERMS.get(col, (0, 0, 0, 0))}"
         )
         print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
-        models[col] = {
-            "ARIMA": {
-                "sMAPE": best_sMAPE,
-                "MAE": best_MAE,
-                "order": best_order,
-                "seasonal_order": SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
-                "model": best_model,
-            }
+        models[col]["ARIMA"] = {
+            "sMAPE": best_sMAPE,
+            "MAE": best_MAE,
+            "order": best_order,
+            "seasonal_order": SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
+            "model": best_model,
         }
 
         # ETS
@@ -223,11 +257,11 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         # direct models
         # direct_models = ["elastic net", "xgboost", "random forest"]
 
-        # create key selected to point to model with smallest
-        # avg. sMAPE across models
-        for col in models:
-            d = {k: v["sMAPE"] for k, v in models[col].items()}
-            models[col]["selected"] = min(d, key=d.get)
+    # create key selected to point to model with smallest
+    # avg. sMAPE across models
+    for col in models:
+        d = {k: v["sMAPE"] for k, v in models[col].items()}
+        models[col]["selected"] = min(d, key=d.get)
 
     return models
 
