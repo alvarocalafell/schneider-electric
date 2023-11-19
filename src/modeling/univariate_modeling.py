@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from xgboost import XGBRegressor
 
 from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
@@ -186,6 +187,60 @@ def grid_search_ets(
     )
 
 
+def grid_search_direct(
+    ts: pd.DataFrame, col: str, horizons: List[int] = [3, 6, 9]
+) -> Tuple[float, float, dict[int, XGBRegressor]]:
+    spl = time_split(ts)
+    sMAPE_total, MAE_total = 0.0, 0.0
+
+    for train_idx, test_idx in spl:
+        train = ts.iloc[train_idx]
+        test = ts.iloc[np.append(train_idx, test_idx)]
+
+        tests = []
+        preds = []
+
+        last_model = {}
+
+        for horizon in horizons:
+            X_train = train.copy()
+            X_test = test.copy()
+            for lag in range(horizon, horizon + 12):
+                X_train[f"lag_{lag}"] = X_train[col].shift(lag)
+                X_test[f"lag_{lag}"] = X_test[col].shift(lag)
+
+            X_train = X_train.dropna()
+            y_train = X_train[col]
+            X_train = X_train.drop(columns=col)
+
+            X_test = X_test.dropna()
+            y_test = X_test[col]
+            X_test = X_test.drop(columns=col)
+
+            model = XGBRegressor(max_depth=3)
+            model.fit(X_train, y_train)
+
+            tests.append(y_test[len(y_test) - len(test_idx) + horizon - 1])
+            preds.append(
+                model.predict(X_test)[
+                    len(X_test) - len(test_idx) + horizon - 1
+                ]
+            )
+
+            last_model[horizon] = model
+
+        sMAPE = smape(np.array(tests), np.array(preds))
+        sMAPE_total += sMAPE
+
+        MAE = mae(np.array(tests), np.array(preds))
+        MAE_total += MAE
+
+    avg_sMAPE = sMAPE_total / len(spl)
+    avg_MAE = MAE_total / len(spl)
+
+    return avg_sMAPE, avg_MAE, last_model
+
+
 def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
     models = {}
     for col in df.columns:
@@ -244,7 +299,6 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         print(f"- Best Seasonal: {best_seasonal}")
         print(f"- Best Seasonal Periods: {best_seasonal_periods}")
         print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
-        print("---------------")
         models[col]["ETS"] = {
             "sMAPE": best_sMAPE,
             "MAE": best_MAE,
@@ -255,7 +309,16 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         }
 
         # direct models
-        # direct_models = ["elastic net", "xgboost", "random forest"]
+        avg_sMAPE, avg_MAE, model = grid_search_direct(df[[col]].copy(), col)
+        print("** XGBOOST **")
+        print(f"- Avg. sMAPE (3-6-9 months): {avg_sMAPE:.2f}")
+        models[col]["XGB"] = {
+            "sMAPE": avg_sMAPE,
+            "MAE": avg_MAE,
+            "model": model,
+        }
+
+        print("---------------")
 
     # create key selected to point to model with smallest
     # avg. sMAPE across models
