@@ -8,7 +8,7 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
 from src.data_preprocessing.data_loader import load_data, time_split
-from src.modeling.evaluation import smape
+from src.modeling.evaluation import mae, smape
 
 warnings.filterwarnings("ignore")
 
@@ -43,13 +43,13 @@ def grid_search_arima(
         AIC for best ARIMA model order
     """
     best_sMAPE = float("inf")
-    best_order = None
+
     spl = time_split(ts)
 
     for p in p_values:
         for q in q_values:
             order = (p, d, q)
-            sMAPE_total = 0.0
+            sMAPE_total, MAE_total = 0.0, 0.0
 
             for train_idx, test_idx in spl:
                 train = ts.iloc[train_idx]
@@ -60,59 +60,20 @@ def grid_search_arima(
                     start=test.index[0], end=test.index[-1]
                 )
                 sMAPE = smape(test[2::3], preds[2::3])
+                MAE = mae(test[2::3], preds[2::3])
                 sMAPE_total += sMAPE
+                MAE_total += MAE
 
             avg_sMAPE = sMAPE_total / len(spl)
+            avg_MAE = MAE_total / len(spl)
 
             if avg_sMAPE < best_sMAPE:
                 best_sMAPE = avg_sMAPE
+                best_MAE = avg_MAE
                 best_order = order
+                best_model = model_fit
 
-    return best_order, best_sMAPE
-
-
-def get_arima_model(df: pd.DataFrame) -> dict[str, ARIMA]:
-    """Get arima model for each column of df.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        tbd
-
-    Returns
-    -------
-    models : dict[str, ARIMA]
-        Dict of univariate models for each column.
-    """
-    models = {}
-    for col in df.columns:
-        if col not in Q_RANGE.keys():
-            continue
-
-        series = df[col].copy()
-        series.index = series.index.to_period("M")
-        series = series.dropna()
-
-        best_order, best_sMAPE = grid_search_arima(
-            series,
-            P_RANGE[col],
-            D[col],
-            Q_RANGE[col],
-            SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
-        )
-        print(f"{col}")
-        print(
-            f"- Best ARIMA Order: {best_order} "
-            f"x {SEASONAL_TERMS.get(col, (0, 0, 0, 0))}"
-        )
-        print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
-        print("---------------")
-
-        model = ARIMA(series, order=best_order)
-        model_fit = model.fit()
-        models[col] = model_fit
-
-    return models
+    return best_order, best_sMAPE, best_MAE, best_model
 
 
 def grid_search_ets(
@@ -146,9 +107,6 @@ def grid_search_ets(
         AIC for the best ETS model.
     """
     best_sMAPE = float("inf")
-    best_trend = None
-    best_seasonal = None
-    best_seasonal_periods = None
 
     spl = time_split(ts)
 
@@ -161,7 +119,7 @@ def grid_search_ets(
                 if seasonal_type and period is None:
                     continue
 
-                sMAPE_total = 0.0
+                sMAPE_total, MAE_total = 0.0, 0.0
 
                 for train_idx, test_idx in spl:
                     train = ts.iloc[train_idx]
@@ -179,69 +137,95 @@ def grid_search_ets(
                         start=test.index[0], end=test.index[-1]
                     )
                     sMAPE = smape(test[2::3], preds[2::3])
+                    MAE = mae(test[2::3], preds[2::3])
+
                     sMAPE_total += sMAPE
+                    MAE_total += MAE
 
                 avg_sMAPE = sMAPE_total / len(spl)
+                avg_MAE = MAE_total / len(spl)
 
                 if avg_sMAPE < best_sMAPE:
                     best_sMAPE = avg_sMAPE
+                    best_MAE = avg_MAE
                     best_trend = trend_type
                     best_seasonal = seasonal_type
                     best_seasonal_periods = period
+                    best_model = ets_fit
 
-    return best_trend, best_seasonal, best_seasonal_periods, best_sMAPE
+    return (
+        best_trend,
+        best_seasonal,
+        best_seasonal_periods,
+        best_sMAPE,
+        best_MAE,
+        best_model,
+    )
 
 
-def get_ets_model(df: pd.DataFrame) -> dict[str, ExponentialSmoothing]:
-    """Get ETS model for each column of df.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The input DataFrame.
-
-    Returns
-    -------
-    models : dict[str, ExponentialSmoothing]
-        Dict of univariate ETS models for each column.
-    """
+def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
     models = {}
-
     for col in df.columns:
+
         series = df[col].copy()
-        series.index = pd.to_datetime(series.index)
+        series.index = series.index.to_period("M")
         series = series.dropna()
 
-        # Grid search for ETS parameters
+        # arima
+        best_order, best_sMAPE, best_MAE, best_model = grid_search_arima(
+            series,
+            P_RANGE[col],
+            D[col],
+            Q_RANGE[col],
+            SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
+        )
+        print(f"{col}")
+        print("** ARIMA **")
+        print(
+            f"- Best ARIMA Order: {best_order} "
+            f"x {SEASONAL_TERMS.get(col, (0, 0, 0, 0))}"
+        )
+        print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
+        models[col] = {
+            "ARIMA": {
+                "sMAPE": best_sMAPE,
+                "MAE": best_MAE,
+                "order": best_order,
+                "seasonal_order": SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
+                "model": best_model,
+            }
+        }
+
+        # ETS
         (
             best_trend,
             best_seasonal,
             best_seasonal_periods,
             best_sMAPE,
+            best_MAE,
+            best_model,
         ) = grid_search_ets(series)
-
-        # Fit the ETS model with the best parameters
-        ets_model = ExponentialSmoothing(
-            series,
-            trend=best_trend,
-            seasonal=best_seasonal,
-            seasonal_periods=best_seasonal_periods,
-        )
-        ets_fit = ets_model.fit()
-
-        models[col] = ets_fit
-
-        print(f"{col}")
+        print("** ETS **")
         print(f"- Best Trend: {best_trend}")
         print(f"- Best Seasonal: {best_seasonal}")
         print(f"- Best Seasonal Periods: {best_seasonal_periods}")
         print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
         print("---------------")
+        models[col]["ETS"] = {
+            "sMAPE": best_sMAPE,
+            "MAE": best_MAE,
+            "trend": best_trend,
+            "seasonal": best_seasonal,
+            "seasonal_periods": best_seasonal_periods,
+            "model": best_model,
+        }
+
+        # direct models
+        # direct_models = ["elastic net", "xgboost", "random forest"]
 
     return models
 
 
 if __name__ == "__main__":
     df = load_data(DATA_DIR / MAIN_FILE)
-    get_arima_model(df)
-    get_ets_model(df)
+    get_best_cv_model(df)
