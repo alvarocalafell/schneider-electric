@@ -223,6 +223,12 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         # direct models
         # direct_models = ["elastic net", "xgboost", "random forest"]
 
+        # create key selected to point to model with smallest
+        # avg. sMAPE across models
+        for col in models:
+            d = {k: v["sMAPE"] for k, v in models[col].items()}
+            models[col]["selected"] = min(d, key=d.get)
+
     return models
 
 
