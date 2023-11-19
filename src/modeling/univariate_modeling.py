@@ -1,3 +1,13 @@
+"""Univariate Modeling.
+
+The script preforms univariate modeling for a baseline, recursive methods
+such as ARIMA and ETS as well as direct methods such as XGB.
+
+Usage:
+    Either run the whole pipeline (see src/main.py) or
+    import the function get_best_cv_model.
+"""
+
 import warnings
 from typing import List, Tuple
 
@@ -7,17 +17,33 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from xgboost import XGBRegressor
 
-from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
-from src.data_preprocessing.data_loader import load_data, time_split
+from src.data_preprocessing.data_loader import time_split
 from src.modeling.evaluation import mae, smape
 
 warnings.filterwarnings("ignore")
 
+# TODO: write part in main.py
+# TODO: write function to get final model on all data
 
-def baseline_model(
-    ts: pd.Series,
-) -> Tuple[float, float, np.ndarray[float]]:
+
+def baseline_model(ts: pd.Series) -> Tuple[float, float, np.ndarray[float]]:
+    """Create constant prediction for cv folds and get avg. sMAPE.
+
+    Parameters
+    ----------
+    ts : pd.Series
+        Time series data.
+
+    Returns
+    -------
+    avg_sMAPE : float
+        Avg. sMAPE for baseline model.
+    avg_MAE : float
+        Avg. MAE for baseline model.
+    preds : np.ndarray[float]
+        Predictions of last fold.
+    """
     spl = time_split(ts)
     sMAPE_total, MAE_total = 0.0, 0.0
 
@@ -43,13 +69,13 @@ def grid_search_arima(
     d: int,
     q_values: List[int],
     seasonal: Tuple[int] = (0, 0, 0, 0),
-) -> Tuple[Tuple[int, int, int], int]:
-    """Performs a grid search for ARIMA based on AIC.
+) -> Tuple[Tuple[int, int, int], float, float, ARIMA]:
+    """Performs a grid search for ARIMA based on cv sMAPE.
 
     Parameters
     ----------
     ts : pd.Series
-        tbd
+        Time series data.
     p_values : List[int]
         List of candidate values for p.
     d : int
@@ -62,9 +88,13 @@ def grid_search_arima(
     Returns
     -------
     best_order : Tuple[int, int, int]
-        Best ARIMA model order (p, d, q)
-    best_aic : int
-        AIC for best ARIMA model order
+        Best ARIMA model order (p, d, q).
+    best_sMAPE : float
+        Avg. sMAPE for best ARIMA model.
+    best_MAE : float
+        Avg. MAE for best ARIMA model.
+    best_model : ARIMA
+        Best ARIMA model trained on final fold.
     """
     best_sMAPE = float("inf")
 
@@ -105,8 +135,8 @@ def grid_search_ets(
     trend: List[str] = ["add", "additive", "multiplicative", None],
     seasonal: List[str] = ["add", "additive", "multiplicative", None],
     seasonal_periods: List[int] = [None, 12, 6, 3],
-) -> Tuple[str, str, int, float]:
-    """Performs a grid search for ETS based on AIC.
+) -> Tuple[str, str, int, float, float, ExponentialSmoothing]:
+    """Performs a grid search for ETS based on cv sMAPE.
 
     Parameters
     ----------
@@ -127,8 +157,12 @@ def grid_search_ets(
         Best seasonal component.
     best_seasonal_periods : int
         Best number of seasonal periods.
-    best_aic : float
-        AIC for the best ETS model.
+    best_sMAPE : float
+        Avg. sMAPE for best ETS model.
+    best_MAE : float
+        Avg. MAE for best ETS model.
+    best_model : ExponentialSmoothing
+        Best ETS model trained on final fold.
     """
     best_sMAPE = float("inf")
 
@@ -187,9 +221,29 @@ def grid_search_ets(
     )
 
 
-def grid_search_direct(
+def direct_model(
     ts: pd.DataFrame, col: str, horizons: List[int] = [3, 6, 9]
 ) -> Tuple[float, float, dict[int, XGBRegressor]]:
+    """Create direct xgboost models for cv folds and horizons.
+
+    Parameters
+    ----------
+    ts : pd.DataFrame
+        Time series data as df.
+    col : str
+        Column of this time series.
+    horizons : List[int]
+        List of months that should be predicted.
+
+    Returns
+    -------
+    avg_sMAPE : float
+        Avg. sMAPE for direct models.
+    avg_MAE : float
+        Avg. MAE for direct models.
+    last_model : dict[int, XGBRegressor]]
+        Direct models for each horizon trained on last cv fold.
+    """
     spl = time_split(ts)
     sMAPE_total, MAE_total = 0.0, 0.0
 
@@ -242,9 +296,21 @@ def grid_search_direct(
 
 
 def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
+    """Run cv search for best univariate model.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe of all columns.
+
+    Returns
+    -------
+    models : dict[str, dict]
+        Dict of models with evalutaion information for each column.
+    """
     models = {}
     for col in df.columns:
-
+        # create target series
         series = df[col].copy()
         series.index = series.index.to_period("M")
         series = series.dropna()
@@ -253,6 +319,7 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
 
         # baseline
         avg_sMAPE, avg_MAE, preds = baseline_model(series)
+
         models[col] = {
             "baseline": {
                 "sMAPE": avg_sMAPE,
@@ -260,6 +327,7 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
                 "model": preds,
             }
         }
+
         print("** Baseline **")
         print(f"- Avg. sMAPE (3-6-9 months): {avg_sMAPE:.2f}")
 
@@ -271,12 +339,14 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
             Q_RANGE[col],
             SEASONAL_TERMS.get(col, (0, 0, 0, 0)),
         )
+
         print("** ARIMA **")
         print(
             f"- Best ARIMA Order: {best_order} "
             f"x {SEASONAL_TERMS.get(col, (0, 0, 0, 0))}"
         )
         print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
+
         models[col]["ARIMA"] = {
             "sMAPE": best_sMAPE,
             "MAE": best_MAE,
@@ -294,11 +364,13 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
             best_MAE,
             best_model,
         ) = grid_search_ets(series)
+
         print("** ETS **")
         print(f"- Best Trend: {best_trend}")
         print(f"- Best Seasonal: {best_seasonal}")
         print(f"- Best Seasonal Periods: {best_seasonal_periods}")
         print(f"- Avg. sMAPE (3-6-9 months): {best_sMAPE:.2f}")
+
         models[col]["ETS"] = {
             "sMAPE": best_sMAPE,
             "MAE": best_MAE,
@@ -309,9 +381,11 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         }
 
         # direct models
-        avg_sMAPE, avg_MAE, model = grid_search_direct(df[[col]].copy(), col)
+        avg_sMAPE, avg_MAE, model = direct_model(df[[col]].copy(), col)
+
         print("** XGBOOST **")
         print(f"- Avg. sMAPE (3-6-9 months): {avg_sMAPE:.2f}")
+
         models[col]["XGB"] = {
             "sMAPE": avg_sMAPE,
             "MAE": avg_MAE,
@@ -327,8 +401,3 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         models[col]["selected"] = min(d, key=d.get)
 
     return models
-
-
-if __name__ == "__main__":
-    df = load_data(DATA_DIR / MAIN_FILE)
-    get_best_cv_model(df)
