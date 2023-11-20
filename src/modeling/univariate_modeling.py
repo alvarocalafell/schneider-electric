@@ -23,8 +23,6 @@ from src.modeling.evaluation import mae, smape
 
 warnings.filterwarnings("ignore")
 
-# TODO: write part in main.py
-
 
 def baseline_model(ts: pd.Series) -> Tuple[float, float, np.ndarray[float]]:
     """Create constant prediction for cv folds and get avg. sMAPE.
@@ -424,7 +422,7 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
     return models
 
 
-def final_model_univariat(
+def final_model_univariate(
     df: pd.DataFrame, models: dict[str, dict]
 ) -> dict[
     str, Union[ARIMA, ExponentialSmoothing, dict[int, XGBRegressor], float]
@@ -451,26 +449,28 @@ def final_model_univariat(
 
     final_models = {}
     for col, val in models_selected.items():
-        if val.keys()[0] == "baseline":
+        model_type = list(val.keys())[0]
+
+        if model_type == "baseline":
             final_models[col] = df[col].iloc[-1].to_numpy()
-        elif val.keys()[0] == "ARIMA":
+        elif model_type == "ARIMA":
             model = ARIMA(
                 df[col],
-                order=val.values()["order"],
-                seasonal_order=val.values()["seasonal_order"],
+                order=val[model_type]["order"],
+                seasonal_order=val[model_type]["seasonal_order"],
             )
             model_fit = model.fit()
             final_models[col] = model_fit
-        elif val.keys()[0] == "ETS":
+        elif model_type == "ETS":
             model = ExponentialSmoothing(
                 df[col],
-                trend=val.values()["trend"],
-                seasonal=val.values()["seasonal"],
-                seasonal_periods=val.values()["seasonal_periods"],
+                trend=val[model_type]["trend"],
+                seasonal=val[model_type]["seasonal"],
+                seasonal_periods=val[model_type]["seasonal_periods"],
             )
             model_fit = model.fit()
             final_models[col] = model_fit
-        elif val.keys()[0] == "XGB":
+        elif model_type == "XGB":
             models_direct = {}
             for horizon in [3, 6, 9]:
                 X_train = df[col].copy()
