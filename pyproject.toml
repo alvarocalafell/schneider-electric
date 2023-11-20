@@ -20,7 +20,7 @@ requires-python = ">=3.9"
 "Homepage" = "https://gitlab.code.hfactory.io/maria-susanne.stoelben/data-business-challenge"
 
 [tool.setuptools]
-packages = ["config"]
+packages = ["config", "src"]
 
 [tool.ruff]
 select = [

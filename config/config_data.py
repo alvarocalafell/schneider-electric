@@ -1,11 +1,21 @@
+"""Config Data.
+
+This is a config file for the data load, processing and feature engineering.
+
+Usage:
+    Change the params here and import them in your script/notebook.
+"""
+
+
 from pathlib import Path
 
+# data load
 DATA_DIR = (
     Path("..") / "hfactory_magic_folders" / "plastic_cost_prediction" / "data"
 )
-
 MAIN_FILE = "PA6_cleaned_dataset.csv"
 
+# feature engineering
 GROUPING_VARS = [
     ["CRUDE_PETRO", "CRUDE_BRENT", "CRUDE_DUBAI", "CRUDE_WTI"],
     [
