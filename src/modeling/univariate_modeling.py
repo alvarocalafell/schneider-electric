@@ -9,7 +9,7 @@ Usage:
 """
 
 import warnings
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,6 @@ from src.modeling.evaluation import mae, smape
 warnings.filterwarnings("ignore")
 
 # TODO: write part in main.py
-# TODO: write function to get final model on all data
 
 
 def baseline_model(ts: pd.Series) -> Tuple[float, float, np.ndarray[float]]:
@@ -423,3 +422,70 @@ def get_best_cv_model(df: pd.DataFrame) -> dict[str, dict]:
         models[col]["selected"] = min(d, key=d.get)
 
     return models
+
+
+def final_model_univariat(
+    df: pd.DataFrame, models: dict[str, dict]
+) -> dict[
+    str, Union[ARIMA, ExponentialSmoothing, dict[int, XGBRegressor], float]
+]:
+    """Run cv search for best univariate model.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe of all columns.
+    models : dict[str, dict]
+        Dict of models with evalutaion information for each column.
+
+    Returns
+    -------
+    final_models : dict[str, Union[ARIMA, ExponentialSmoothing,
+                        dict[int, XGBRegressor], float]]
+        Dict of best model for each column trained on all data
+    """
+    # get selected models
+    models_selected = {
+        k: {v["selected"]: v[v["selected"]]} for k, v in models.items()
+    }
+
+    final_models = {}
+    for col, val in models_selected.items():
+        if val.keys()[0] == "baseline":
+            final_models[col] = df[col].iloc[-1].to_numpy()
+        elif val.keys()[0] == "ARIMA":
+            model = ARIMA(
+                df[col],
+                order=val.values()["order"],
+                seasonal_order=val.values()["seasonal_order"],
+            )
+            model_fit = model.fit()
+            final_models[col] = model_fit
+        elif val.keys()[0] == "ETS":
+            model = ExponentialSmoothing(
+                df[col],
+                trend=val.values()["trend"],
+                seasonal=val.values()["seasonal"],
+                seasonal_periods=val.values()["seasonal_periods"],
+            )
+            model_fit = model.fit()
+            final_models[col] = model_fit
+        elif val.keys()[0] == "XGB":
+            models_direct = {}
+            for horizon in [3, 6, 9]:
+                X_train = df[col].copy()
+                for lag in range(horizon, horizon + 12):
+                    X_train[f"lag_{lag}"] = X_train[col].shift(lag)
+
+                X_train = X_train.dropna()
+                y_train = X_train[col]
+                X_train = X_train.drop(columns=col)
+
+                model = XGBRegressor(max_depth=3)
+                model.fit(X_train, y_train)
+
+                models_direct[horizon] = model
+
+            final_models[col] = models_direct
+
+    return final_models
