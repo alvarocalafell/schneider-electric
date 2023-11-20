@@ -6,6 +6,7 @@ Usage:
     Change the params here and import them in your script/notebook.
 """
 
+TARGET = "best_price_compound"
 
 P_RANGE = {
     "best_price_compound": list(range(0, 4)),
