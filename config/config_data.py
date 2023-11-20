@@ -40,3 +40,5 @@ DROP_VARS = [
     "Cyclohexane_price",
     "iNATGAS",
 ]
+
+N_FOLDS = 5
