@@ -15,9 +15,6 @@ DATA_DIR = (
 )
 MAIN_FILE = "PA6_cleaned_dataset.csv"
 
-# data split
-N_FOLDS = 6
-
 # feature engineering
 GROUPING_VARS = [
     ["CRUDE_PETRO", "CRUDE_BRENT", "CRUDE_DUBAI", "CRUDE_WTI"],
