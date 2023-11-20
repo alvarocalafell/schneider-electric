@@ -44,16 +44,21 @@ def baseline_model(ts: pd.Series) -> Tuple[float, float, np.ndarray[float]]:
     spl = time_split(ts)
     sMAPE_total, MAE_total = 0.0, 0.0
 
+    # iterate over cv folds
     for train_idx, test_idx in spl:
         train = ts.iloc[train_idx]
         test = ts.iloc[test_idx]
 
+        # predictions are constant of last observation in train data
         preds = np.repeat(train[-1], len(test))
+
+        # get avg. sMAPE and MAE over 3, 6, 9 months on test data for fold
         sMAPE = smape(test[2::3], preds[2::3])
         MAE = mae(test[2::3], preds[2::3])
         sMAPE_total += sMAPE
         MAE_total += MAE
 
+    # average MAE and sMAPE over folds
     avg_sMAPE = sMAPE_total / len(spl)
     avg_MAE = MAE_total / len(spl)
 
@@ -96,30 +101,39 @@ def grid_search_arima(
         Predictions of best model of last fold.
     """
     best_sMAPE = float("inf")
-
     spl = time_split(ts)
 
+    # iterate over possible p and q values defining the order
     for p in p_values:
         for q in q_values:
             order = (p, d, q)
             sMAPE_total, MAE_total = 0.0, 0.0
 
+            # iterate over cv folds
             for train_idx, test_idx in spl:
                 train = ts.iloc[train_idx]
                 test = ts.iloc[test_idx]
+
+                # train model for fold and order
                 model = ARIMA(train, order=order, seasonal_order=seasonal)
                 model_fit = model.fit()
+
+                # predictions for fold
                 preds = model_fit.predict(
                     start=test.index[0], end=test.index[-1]
                 )
+
+                # get sMAPE and MAE over 3,6,9 months on test for fold
                 sMAPE = smape(test[2::3], preds[2::3])
                 MAE = mae(test[2::3], preds[2::3])
                 sMAPE_total += sMAPE
                 MAE_total += MAE
 
+            # average MAE and sMAPE over folds
             avg_sMAPE = sMAPE_total / len(spl)
             avg_MAE = MAE_total / len(spl)
 
+            # assign best order and add. information if sMAPE is smaller
             if avg_sMAPE < best_sMAPE:
                 best_sMAPE = avg_sMAPE
                 best_MAE = avg_MAE
@@ -172,6 +186,7 @@ def grid_search_ets(
 
     spl = time_split(ts)
 
+    # iterate over combinations of trend, season and seasonal periods
     for trend_type in trend:
         for seasonal_type in seasonal:
             for period in seasonal_periods:
@@ -183,10 +198,12 @@ def grid_search_ets(
 
                 sMAPE_total, MAE_total = 0.0, 0.0
 
+                # iterate over cv folds
                 for train_idx, test_idx in spl:
                     train = ts.iloc[train_idx]
                     test = ts.iloc[test_idx]
 
+                    # train model for fold and param combination
                     ets_model = ExponentialSmoothing(
                         train,
                         trend=trend_type,
@@ -195,18 +212,22 @@ def grid_search_ets(
                     )
                     ets_fit = ets_model.fit()
 
+                    # predictions for fold
                     preds = ets_fit.predict(
                         start=test.index[0], end=test.index[-1]
                     )
+
+                    # get sMAPE and MAE over 3,6,9 months on test for fold
                     sMAPE = smape(test[2::3], preds[2::3])
                     MAE = mae(test[2::3], preds[2::3])
-
                     sMAPE_total += sMAPE
                     MAE_total += MAE
 
+                # average MAE and sMAPE over folds
                 avg_sMAPE = sMAPE_total / len(spl)
                 avg_MAE = MAE_total / len(spl)
 
+                # assign best model and add. information if sMAPE is smaller
                 if avg_sMAPE < best_sMAPE:
                     best_sMAPE = avg_sMAPE
                     best_MAE = avg_MAE
@@ -255,33 +276,40 @@ def direct_model(
     spl = time_split(ts)
     sMAPE_total, MAE_total = 0.0, 0.0
 
+    # iterate over cv folds
     for train_idx, test_idx in spl:
         train = ts.iloc[train_idx]
         test = ts.iloc[np.append(train_idx, test_idx)]
 
         tests = []
         preds = []
-
         last_model = {}
 
+        # iterate over horizons and create model for each
         for horizon in horizons:
             X_train = train.copy()
             X_test = test.copy()
+
+            # lag horizon+ to create exogenous columns
             for lag in range(horizon, horizon + 12):
                 X_train[f"lag_{lag}"] = X_train[col].shift(lag)
                 X_test[f"lag_{lag}"] = X_test[col].shift(lag)
 
+            # get train data
             X_train = X_train.dropna()
             y_train = X_train[col]
             X_train = X_train.drop(columns=col)
 
+            # get test data
             X_test = X_test.dropna()
             y_test = X_test[col]
             X_test = X_test.drop(columns=col)
 
+            # fit model for fold and horizon
             model = XGBRegressor(max_depth=3)
             model.fit(X_train, y_train)
 
+            # get target and prediction for horizon
             tests.append(y_test[len(y_test) - len(test_idx) + horizon - 1])
             preds.append(
                 model.predict(X_test)[
@@ -291,12 +319,13 @@ def direct_model(
 
             last_model[horizon] = model
 
+        # get avg. sMAPE and MAE over 3, 6, 9 months on test data for fold
         sMAPE = smape(np.array(tests), np.array(preds))
         sMAPE_total += sMAPE
-
         MAE = mae(np.array(tests), np.array(preds))
         MAE_total += MAE
 
+    # average MAE and sMAPE over folds
     avg_sMAPE = sMAPE_total / len(spl)
     avg_MAE = MAE_total / len(spl)
 
@@ -447,21 +476,28 @@ def final_model_univariate(
         k: {v["selected"]: v[v["selected"]]} for k, v in models.items()
     }
 
+    # train final model for each column on whole
     final_models = {}
     for col, val in models_selected.items():
         model_type = list(val.keys())[0]
 
         if model_type == "baseline":
-            final_models[col] = df[col].iloc[-1].to_numpy()
+            # define constant value for last point in train data
+            final_models[col] = df[col].iloc[-1]
+
         elif model_type == "ARIMA":
+            # fit ARIMA with best order and seasonal order
             model = ARIMA(
                 df[col],
                 order=val[model_type]["order"],
                 seasonal_order=val[model_type]["seasonal_order"],
             )
             model_fit = model.fit()
+
             final_models[col] = model_fit
+
         elif model_type == "ETS":
+            # fit ETS with best trend, season and seasonal periods
             model = ExponentialSmoothing(
                 df[col],
                 trend=val[model_type]["trend"],
@@ -469,18 +505,24 @@ def final_model_univariate(
                 seasonal_periods=val[model_type]["seasonal_periods"],
             )
             model_fit = model.fit()
+
             final_models[col] = model_fit
+
         elif model_type == "XGB":
+            # fit direct model as XGB for each horizon
             models_direct = {}
             for horizon in [3, 6, 9]:
-                X_train = df[col].copy()
+                # create lags for each horizon as exogenous columns
+                X_train = df[[col]].copy()
                 for lag in range(horizon, horizon + 12):
                     X_train[f"lag_{lag}"] = X_train[col].shift(lag)
 
+                # define train data
                 X_train = X_train.dropna()
                 y_train = X_train[col]
                 X_train = X_train.drop(columns=col)
 
+                # fit model for horizon
                 model = XGBRegressor(max_depth=3)
                 model.fit(X_train, y_train)
 
