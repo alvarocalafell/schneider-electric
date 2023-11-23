@@ -494,7 +494,7 @@ def final_model_univariate(
         elif model_type == "ARIMA":
             # fit ARIMA with best order and seasonal order
             model = ARIMA(
-                data[col],
+                data[col].dropna(),
                 order=val[model_type]["order"],
                 seasonal_order=val[model_type]["seasonal_order"],
             )
@@ -505,7 +505,7 @@ def final_model_univariate(
         elif model_type == "ETS":
             # fit ETS with best trend, season and seasonal periods
             model = ExponentialSmoothing(
-                data[col],
+                data[col].dropna(),
                 trend=val[model_type]["trend"],
                 seasonal=val[model_type]["seasonal"],
                 seasonal_periods=val[model_type]["seasonal_periods"],
