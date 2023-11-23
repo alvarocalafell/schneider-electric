@@ -76,7 +76,7 @@ def grid_search_var(
 
             # predictions for fold
             lag_order = model_fit.k_ar
-            forecast_input = test.to_numpy()[-lag_order:]
+            forecast_input = train.to_numpy()[-lag_order:]
             pred_values = model_fit.forecast(y=forecast_input, steps=len(test))
             preds = pd.DataFrame(
                 pred_values, index=test.index, columns=test.columns
