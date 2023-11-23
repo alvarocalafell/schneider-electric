@@ -9,7 +9,9 @@ Authors: Alvaro Calafell, Elizaveta Barysheva, João Melo, Madhura Nirale, Maria
 
 ## Description
 
-The goal of this project is to predict for the months of April, July and August of 2023 based on a dataset containing various time series. In order to obtain this, we will do Exploratory Data Analysis, try different types of models, both univariate and multivariate, and then analyse our predictions in a critical way.
+In today's business landscape, accurately predicting the costs associated with plastic materials is crucial for Schneider Electric (SE). However, it can be challenging to foresee how plastic costs will evolve in the future due to various factors influencing the market. To address this issue, leveraging data and AI technologies can provide valuable insights to forecast these costs effectively. By analyzing historical data, market trends, raw material prices, supply and demand dynamics, and economic indicators, we hope that we can develop a predictive model that helps businesses estimate future plastic costs with greater accuracy. This data-driven approach could empower Schneider Electric to make informed decisions, optimize its budgeting, and strategically plan its procurement strategies, ultimately maximizing profitability and minimizing financial risks associated with plastic materials.
+
+This exercise will try to tackle this issue by making a model to accurately predict the plastic raw material prices leveraging various data sources and AI. The goal of this project is to predict the best compound price for the months of April, July and October of 2023 based on a dataset containing various time series.
 
 ## Installation
 ```bash
