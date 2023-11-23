@@ -1,3 +1,11 @@
+"""Evaluation metrics.
+
+The script provides functions for evaluation metrics such as sMAPE and MAE.
+
+Usage:
+    Import the function smpae and mae.
+"""
+
 from typing import Union
 
 import numpy as np
