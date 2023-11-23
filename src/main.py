@@ -16,42 +16,55 @@ Note:
 
 """
 
+import pandas as pd
+from dateutil.relativedelta import relativedelta
 
-from config.config_data import (
-    DATA_DIR,
-    DROP_VARS,
-    GROUPING_FUNCS,
-    GROUPING_NAMES,
-    GROUPING_VARS,
-    MAIN_FILE,
-    TIME_VARS,
-)
+from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import TARGET
 from src.data_preprocessing.data_loader import load_data
-from src.data_preprocessing.feature_engineering import preprocessor
 from src.modeling.univariate_modeling import (
     final_model_univariate,
     get_best_cv_model,
 )
 
-if __name__ == "__main__":
+
+def main() -> None:
+    """Runs modeling pipeline.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
     # univariate modeling
     df = load_data(DATA_DIR / MAIN_FILE)
     models = get_best_cv_model(df)
     univariate_models = final_model_univariate(df, models)
 
     # get univariate model for target variable
-    univariate_model_target = {TARGET: univariate_models[TARGET]}
+    univariate_model_target = univariate_models[TARGET]
 
-    # get univariate models for exogenous columns
-    univariate_models.pop(TARGET)
+    # predict for 3,6,9 months into the future
+    start_idx = df.index[-1] + relativedelta(months=1)
+    end_idx = df.index[-1] + relativedelta(months=9)
+    preds = univariate_model_target.predict(start=start_idx, end=end_idx)[2::3]
 
-    # feature engineering
-    preprocessor(
-        data_path=DATA_DIR / MAIN_FILE,
-        grouping_features=GROUPING_VARS,
-        feature_names=GROUPING_NAMES,
-        aggregate_funcs=GROUPING_FUNCS,
-        time_vars=TIME_VARS,
-        drop_variables=DROP_VARS,
+    # save predictions as csv
+    out_csv = pd.DataFrame(
+        {
+            "time": [
+                df.index[-1] + relativedelta(months=3),
+                df.index[-1] + relativedelta(months=6),
+                end_idx,
+            ],
+            "best_price_compound": preds,
+        }
     )
+    out_csv.to_csv("predictions.csv", index=False)
+
+
+if __name__ == "__main__":
+    main()
