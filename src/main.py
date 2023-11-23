@@ -29,6 +29,16 @@ from src.modeling.univariate_modeling import (
 
 
 def main() -> None:
+    """Runs modeling pipeline.
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
     # univariate modeling
     df = load_data(DATA_DIR / MAIN_FILE)
     models = get_best_cv_model(df)
