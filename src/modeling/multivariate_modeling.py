@@ -1,3 +1,11 @@
+"""Multivariate Modeling.
+
+The script preforms multivariate modeling for VAR.
+
+Usage:
+    Import the function grid_search_var.
+"""
+
 from typing import Tuple, Union
 
 import numpy as np
