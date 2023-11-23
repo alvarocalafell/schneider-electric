@@ -22,7 +22,10 @@ from dateutil.relativedelta import relativedelta
 from config.config_data import DATA_DIR, MAIN_FILE
 from config.config_modeling import TARGET
 from src.data_preprocessing.data_loader import load_data
-from src.modeling.univariate_modeling import final_model_univariate, get_best_cv_model
+from src.modeling.univariate_modeling import (
+    final_model_univariate,
+    get_best_cv_model,
+)
 
 
 def main() -> None:
