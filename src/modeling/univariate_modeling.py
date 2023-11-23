@@ -13,8 +13,8 @@ from typing import List, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from statime_seriesmodels.time_seriesa.arima.model import ARIMA
-from statime_seriesmodels.time_seriesa.holtwinters import ExponentialSmoothing
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from xgboost import XGBRegressor
 
 from config.config_modeling import P_RANGE, Q_RANGE, SEASONAL_TERMS, D
@@ -404,49 +404,49 @@ def get_best_cv_model(data: pd.DataFrame) -> dict[str, dict]:
             "preds": best_preds,
         }
 
-        # ETS
-        (
-            best_trend,
-            best_seasonal,
-            best_seasonal_periods,
-            best_smape_,
-            best_mae_,
-            best_model,
-            best_preds,
-        ) = grid_search_etime_series(series)
+        # # ETS
+        # (
+        #     best_trend,
+        #     best_seasonal,
+        #     best_seasonal_periods,
+        #     best_smape_,
+        #     best_mae_,
+        #     best_model,
+        #     best_preds,
+        # ) = grid_search_etime_series(series)
 
-        print("** ETS **")
-        print(f"- Best Trend: {best_trend}")
-        print(f"- Best Seasonal: {best_seasonal}")
-        print(f"- Best Seasonal Periods: {best_seasonal_periods}")
-        print(f"- Avg. smape_ (3-6-9 months): {best_smape_:.2f}")
+        # print("** ETS **")
+        # print(f"- Best Trend: {best_trend}")
+        # print(f"- Best Seasonal: {best_seasonal}")
+        # print(f"- Best Seasonal Periods: {best_seasonal_periods}")
+        # print(f"- Avg. smape_ (3-6-9 months): {best_smape_:.2f}")
 
-        models[col]["ETS"] = {
-            "smape_": best_smape_,
-            "mae_": best_mae_,
-            "trend": best_trend,
-            "seasonal": best_seasonal,
-            "seasonal_periods": best_seasonal_periods,
-            "model": best_model,
-            "preds": best_preds,
-        }
+        # models[col]["ETS"] = {
+        #     "smape_": best_smape_,
+        #     "mae_": best_mae_,
+        #     "trend": best_trend,
+        #     "seasonal": best_seasonal,
+        #     "seasonal_periods": best_seasonal_periods,
+        #     "model": best_model,
+        #     "preds": best_preds,
+        # }
 
-        # direct models
-        avg_smape, avg_mae, model, preds = direct_model(
-            data[[col]].copy(), col
-        )
+        # # direct models
+        # avg_smape, avg_mae, model, preds = direct_model(
+        #     data[[col]].copy(), col
+        # )
 
-        print("** XGBOOST **")
-        print(f"- Avg. smape_ (3-6-9 months): {avg_smape:.2f}")
+        # print("** XGBOOST **")
+        # print(f"- Avg. smape_ (3-6-9 months): {avg_smape:.2f}")
 
-        models[col]["XGB"] = {
-            "smape_": avg_smape,
-            "mae_": avg_mae,
-            "model": model,
-            "preds": preds,
-        }
+        # models[col]["XGB"] = {
+        #     "smape_": avg_smape,
+        #     "mae_": avg_mae,
+        #     "model": model,
+        #     "preds": preds,
+        # }
 
-        print("---------------")
+        # print("---------------")
 
     # create key selected to point to model with smallest
     # avg. smape_ across models
