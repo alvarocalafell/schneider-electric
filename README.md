@@ -9,6 +9,8 @@ Authors: Alvaro Calafell, Elizaveta Barysheva, João Melo, Madhura Nirale, Maria
 
 ## Description
 
+The goal of this project is to predict for the months of April, July and August of 2023 based on a dataset containing various time series. In order to obtain this, we will do Exploratory Data Analysis, try different types of models, both univariate and multivariate, and then analyse our predictions in a critical way.
+
 ## Installation
 ```bash
 python -m venv .venv
