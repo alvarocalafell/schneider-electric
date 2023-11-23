@@ -25,26 +25,26 @@ def load_data(path_to_file: Path) -> pd.DataFrame:
 
     Returns
     -------
-    df : pd.DataFrame
+    data : pd.DataFrame
             Data as a dataframe.
     """
-    df = pd.read_csv(path_to_file)
+    data = pd.read_csv(path_to_file)
 
     # convert time from string to datetime and set it as index
-    df.index = pd.to_datetime(df["time"])
-    df = df.drop(columns="time")
+    data.index = pd.to_datetime(data["time"])
+    data = data.drop(columns="time")
 
-    return df
+    return data
 
 
 def time_split(
-    df: pd.DataFrame, n_folds: int = 6, test_size: int = 9
+    data: pd.DataFrame, n_folds: int = 6, test_size: int = 9
 ) -> List[Tuple[np.ndarray[int], np.ndarray[int]]]:
     """Creates an extending time series split for data.
 
     Parameters
     -------
-    df : pd.DataFrame
+    data : pd.DataFrame
         Data as a dataframe.
     n_folds : int, optional
         Number of time series folds, default is 6.
@@ -57,7 +57,7 @@ def time_split(
                 Splits of train and test indices per fold.
     """
     all_splits = []
-    split_index = len(df) - n_folds * test_size
+    split_index = len(data) - n_folds * test_size
     train_ids = np.arange(0, split_index)
 
     for _ in range(1, n_folds + 1):
